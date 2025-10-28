@@ -1,147 +1,102 @@
-# Figure 5.3 – Mean (±SD) of Strategic Management Survey Items
-# Times New Roman + blue/teal palette + error bars
-
-import matplotlib
-import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from statsmodels.stats.anova import anova_lm
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+import os
 
-# Use Times New Roman (falls back gracefully if not available)
-matplotlib.rcParams['font.family'] = 'Times New Roman'
+# Ensure output folder
+OUT = "outputs"
+os.makedirs(OUT, exist_ok=True)
 
-# Labels and stats (from your Table 5.1)
-labels = [
-    "Q4 Strategic Plan Defined",
-    "Q5 Objectives Communicated",
-    "Q6 Frameworks Used",
-    "Q7 Strategy Reviewed",
-    "Q8 Strategy Drives Performance",
-    "Q9 Strategy to Outcomes",
-    "Q10 Initiatives Achieve Objectives",
-    "Q11 Implementation Challenges",
-    "Q12 Adaptation Agility",
-    "Q13 Best Practices vs Peers",
-    "Q14 Improvement Would Help"
+# Load Data
+xlsx = "Survey_Responses_100.xlsx"
+try:
+    df = pd.read_excel(xlsx, sheet_name="Responses")
+except:
+    df = pd.read_excel(xlsx)
+
+# Convert Likert columns to numeric
+likert_cols = [
+    "Q4_StrategicPlanDefined","Q5_ObjectivesCommunicated","Q6_FrameworksUsed","Q7_StrategyReviewed",
+    "Q8_StrategyDrivesPerformance","Q9_StrategyToOutcomes","Q10_InitiativesAchieveObjectives",
+    "Q11_ImplementationChallenges","Q12_AdaptationAgility","Q13_UsesBestPracticesVsPeers","Q14_ImprovementWouldHelp"
 ]
-means = np.array([3.03, 3.22, 3.21, 3.27, 3.31, 3.22, 3.41, 2.94, 2.94, 2.90, 2.82])
-sds   = np.array([1.46, 1.47, 1.38, 1.30, 1.32, 1.40, 1.32, 1.37, 1.36, 1.29, 1.37])
+for c in likert_cols:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
 
-# Corporate blue/teal palette
-palette = ["#0077b6", "#0096c7"]
-colors = [palette[i % 2] for i in range(len(labels))]
+# Create indices
+practice_items = ["Q4_StrategicPlanDefined","Q5_ObjectivesCommunicated","Q6_FrameworksUsed","Q7_StrategyReviewed"]
+outcome_items  = ["Q8_StrategyDrivesPerformance","Q9_StrategyToOutcomes","Q10_InitiativesAchieveObjectives"]
+df["Practice_Index"] = df[practice_items].mean(axis=1)
+df["Outcome_Index"]  = df[outcome_items].mean(axis=1)
 
-plt.figure(figsize=(12,6))
-x = np.arange(len(labels))
-plt.bar(x, means, yerr=sds, capsize=4, color=colors, edgecolor='black', linewidth=0.4)
-plt.xticks(x, labels, rotation=35, ha='right')
-plt.ylabel("Mean Response (1–5 Likert Scale)")
-plt.ylim(0, 5)
-plt.title("Figure 5.3 – Mean (±SD) of Strategic Management Survey Items", fontsize=13)
-plt.tight_layout()
+# Cronbach’s Alpha
+def cronbach_alpha(items):
+    x = items.dropna()
+    k = x.shape[1]
+    var_sum = x.var(axis=0, ddof=1).sum()
+    total_var = x.sum(axis=1).var(ddof=1)
+    return (k/(k-1)) * (1 - var_sum/total_var)
 
-outfile = "Figure_5_3_Branded_TNR.png"
-plt.savefig(outfile, dpi=300, bbox_inches="tight")
-plt.close()
-print("Saved:", outfile)
-# import pandas as pd
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from scipy import stats
-# import statsmodels.api as sm
-# import statsmodels.formula.api as smf
-# from statsmodels.stats.anova import anova_lm
-# from statsmodels.stats.multicomp import pairwise_tukeyhsd
-# import os
+alpha_practice = cronbach_alpha(df[practice_items])
+alpha_outcome  = cronbach_alpha(df[outcome_items])
 
-# # Ensure output folder
-# OUT = "outputs"
-# os.makedirs(OUT, exist_ok=True)
+# Table 5.1 – Descriptive Statistics
+desc = []
+for c in likert_cols + ["Practice_Index","Outcome_Index"]:
+    s = df[c].dropna()
+    desc.append([c, round(s.mean(),2), round(s.std(ddof=1),2),
+                 int(s.min()), int(s.max()), len(s)])
+pd.DataFrame(desc, columns=["Variable","Mean","SD","Min","Max","N"]).to_csv(f"{OUT}/Table_5_1_Descriptives.csv", index=False)
 
-# # Load Data
-# xlsx = "Survey_Responses_100.xlsx"
-# try:
-#     df = pd.read_excel(xlsx, sheet_name="Responses")
-# except:
-#     df = pd.read_excel(xlsx)
+# Table 5.2 – Correlation Matrix
+series = {
+    "Practice_Index": df["Practice_Index"],
+    "Outcome_Index": df["Outcome_Index"],
+    "Challenges": df["Q11_ImplementationChallenges"],
+    "Agility": df["Q12_AdaptationAgility"],
+    "Best_Practices": df["Q13_UsesBestPracticesVsPeers"]
+}
+order = list(series.keys())
+corr = pd.DataFrame(index=order, columns=order, dtype=object)
+for i in order:
+    for j in order:
+        if i == j:
+            corr.loc[i,j] = "—"
+        else:
+            m = series[i].notna() & series[j].notna()
+            r,p = stats.pearsonr(series[i][m], series[j][m])
+            corr.loc[i,j] = f"{r:.2f} (p={p:.3f})"
+corr.to_csv(f"{OUT}/Table_5_2_Correlations.csv")
 
-# # Convert Likert columns to numeric
-# likert_cols = [
-#     "Q4_StrategicPlanDefined","Q5_ObjectivesCommunicated","Q6_FrameworksUsed","Q7_StrategyReviewed",
-#     "Q8_StrategyDrivesPerformance","Q9_StrategyToOutcomes","Q10_InitiativesAchieveObjectives",
-#     "Q11_ImplementationChallenges","Q12_AdaptationAgility","Q13_UsesBestPracticesVsPeers","Q14_ImprovementWouldHelp"
-# ]
-# for c in likert_cols:
-#     df[c] = pd.to_numeric(df[c], errors="coerce")
+# Table 5.3 – Moderated Regression
+df["Practice_x_Agility"] = df["Practice_Index"] * df["Q12_AdaptationAgility"]
+X = df[["Practice_Index","Q11_ImplementationChallenges","Q12_AdaptationAgility","Practice_x_Agility"]]
+X = sm.add_constant(X)
+reg = sm.OLS(df["Outcome_Index"], X, missing="drop").fit()
+reg.summary2().tables[1].to_csv(f"{OUT}/Table_5_3_Regression.csv")
 
-# # Create indices
-# practice_items = ["Q4_StrategicPlanDefined","Q5_ObjectivesCommunicated","Q6_FrameworksUsed","Q7_StrategyReviewed"]
-# outcome_items  = ["Q8_StrategyDrivesPerformance","Q9_StrategyToOutcomes","Q10_InitiativesAchieveObjectives"]
-# df["Practice_Index"] = df[practice_items].mean(axis=1)
-# df["Outcome_Index"]  = df[outcome_items].mean(axis=1)
+# Table 5.4 – ANOVA by Role
+df["Role"] = df["Role"].astype(str)
+anova_result = anova_lm(smf.ols("Outcome_Index ~ C(Role)", df).fit(), typ=2)
+anova_result.to_csv(f"{OUT}/Table_5_4_ANOVA.csv")
 
-# # Cronbach’s Alpha
-# def cronbach_alpha(items):
-#     x = items.dropna()
-#     k = x.shape[1]
-#     var_sum = x.var(axis=0, ddof=1).sum()
-#     total_var = x.sum(axis=1).var(ddof=1)
-#     return (k/(k-1)) * (1 - var_sum/total_var)
+# Table 5.5 – Tukey HSD Post-Hoc
+tukey = pairwise_tukeyhsd(df["Outcome_Index"], df["Role"])
+pd.DataFrame(tukey._results_table.data[1:], columns=tukey._results_table.data[0])\
+  .to_csv(f"{OUT}/Table_5_5_Tukey.csv", index=False)
 
-# alpha_practice = cronbach_alpha(df[practice_items])
-# alpha_outcome  = cronbach_alpha(df[outcome_items])
+# Figures
+plt.pie(df["Role"].value_counts(), labels=df["Role"].value_counts().index, autopct="%1.1f%%")
+plt.title("Distribution by Role")
+plt.savefig(f"{OUT}/Figure_5_1_Role.png", dpi=200, bbox_inches="tight"); plt.close()
 
-# # Table 5.1 – Descriptive Statistics
-# desc = []
-# for c in likert_cols + ["Practice_Index","Outcome_Index"]:
-#     s = df[c].dropna()
-#     desc.append([c, round(s.mean(),2), round(s.std(ddof=1),2),
-#                  int(s.min()), int(s.max()), len(s)])
-# pd.DataFrame(desc, columns=["Variable","Mean","SD","Min","Max","N"]).to_csv(f"{OUT}/Table_5_1_Descriptives.csv", index=False)
+plt.pie(df["Industry"].value_counts(), labels=df["Industry"].value_counts().index, autopct="%1.1f%%")
+plt.title("Distribution by Industry")
+plt.savefig(f"{OUT}/Figure_5_2_Industry.png", dpi=200, bbox_inches="tight"); plt.close()
 
-# # Table 5.2 – Correlation Matrix
-# series = {
-#     "Practice_Index": df["Practice_Index"],
-#     "Outcome_Index": df["Outcome_Index"],
-#     "Challenges": df["Q11_ImplementationChallenges"],
-#     "Agility": df["Q12_AdaptationAgility"],
-#     "Best_Practices": df["Q13_UsesBestPracticesVsPeers"]
-# }
-# order = list(series.keys())
-# corr = pd.DataFrame(index=order, columns=order, dtype=object)
-# for i in order:
-#     for j in order:
-#         if i == j:
-#             corr.loc[i,j] = "—"
-#         else:
-#             m = series[i].notna() & series[j].notna()
-#             r,p = stats.pearsonr(series[i][m], series[j][m])
-#             corr.loc[i,j] = f"{r:.2f} (p={p:.3f})"
-# corr.to_csv(f"{OUT}/Table_5_2_Correlations.csv")
-
-# # Table 5.3 – Moderated Regression
-# df["Practice_x_Agility"] = df["Practice_Index"] * df["Q12_AdaptationAgility"]
-# X = df[["Practice_Index","Q11_ImplementationChallenges","Q12_AdaptationAgility","Practice_x_Agility"]]
-# X = sm.add_constant(X)
-# reg = sm.OLS(df["Outcome_Index"], X, missing="drop").fit()
-# reg.summary2().tables[1].to_csv(f"{OUT}/Table_5_3_Regression.csv")
-
-# # Table 5.4 – ANOVA by Role
-# df["Role"] = df["Role"].astype(str)
-# anova_result = anova_lm(smf.ols("Outcome_Index ~ C(Role)", df).fit(), typ=2)
-# anova_result.to_csv(f"{OUT}/Table_5_4_ANOVA.csv")
-
-# # Table 5.5 – Tukey HSD Post-Hoc
-# tukey = pairwise_tukeyhsd(df["Outcome_Index"], df["Role"])
-# pd.DataFrame(tukey._results_table.data[1:], columns=tukey._results_table.data[0])\
-#   .to_csv(f"{OUT}/Table_5_5_Tukey.csv", index=False)
-
-# # Figures
-# plt.pie(df["Role"].value_counts(), labels=df["Role"].value_counts().index, autopct="%1.1f%%")
-# plt.title("Distribution by Role")
-# plt.savefig(f"{OUT}/Figure_5_1_Role.png", dpi=200, bbox_inches="tight"); plt.close()
-
-# plt.pie(df["Industry"].value_counts(), labels=df["Industry"].value_counts().index, autopct="%1.1f%%")
-# plt.title("Distribution by Industry")
-# plt.savefig(f"{OUT}/Figure_5_2_Industry.png", dpi=200, bbox_inches="tight"); plt.close()
-
-# print("\n✅ All tables + figures saved in /outputs folder")
-# print("✅ Ready for dissertation analysis!")
+print("\n All tables + figures saved in /outputs folder")
