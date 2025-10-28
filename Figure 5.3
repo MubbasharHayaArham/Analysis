@@ -1,0 +1,44 @@
+# Figure 5.3 – Mean (±SD) of Strategic Management Survey Items
+# Times New Roman + blue/teal palette + error bars
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Use Times New Roman (falls back gracefully if not available)
+matplotlib.rcParams['font.family'] = 'Times New Roman'
+
+# Labels and stats (from your Table 5.1)
+labels = [
+    "Q4 Strategic Plan Defined",
+    "Q5 Objectives Communicated",
+    "Q6 Frameworks Used",
+    "Q7 Strategy Reviewed",
+    "Q8 Strategy Drives Performance",
+    "Q9 Strategy to Outcomes",
+    "Q10 Initiatives Achieve Objectives",
+    "Q11 Implementation Challenges",
+    "Q12 Adaptation Agility",
+    "Q13 Best Practices vs Peers",
+    "Q14 Improvement Would Help"
+]
+means = np.array([3.03, 3.22, 3.21, 3.27, 3.31, 3.22, 3.41, 2.94, 2.94, 2.90, 2.82])
+sds   = np.array([1.46, 1.47, 1.38, 1.30, 1.32, 1.40, 1.32, 1.37, 1.36, 1.29, 1.37])
+
+# Corporate blue/teal palette
+palette = ["#0077b6", "#0096c7"]
+colors = [palette[i % 2] for i in range(len(labels))]
+
+plt.figure(figsize=(12,6))
+x = np.arange(len(labels))
+plt.bar(x, means, yerr=sds, capsize=4, color=colors, edgecolor='black', linewidth=0.4)
+plt.xticks(x, labels, rotation=35, ha='right')
+plt.ylabel("Mean Response (1–5 Likert Scale)")
+plt.ylim(0, 5)
+plt.title("Figure 5.3 – Mean (±SD) of Strategic Management Survey Items", fontsize=13)
+plt.tight_layout()
+
+outfile = "Figure_5_3_Branded_TNR.png"
+plt.savefig(outfile, dpi=300, bbox_inches="tight")
+plt.close()
+print("Saved:", outfile)
